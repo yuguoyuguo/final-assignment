@@ -1,14 +1,14 @@
 import os
 import json
 import logging
-from datetime import datetime#时间相关
+from datetime import datetime, timedelta #时间相关#时间间隔
 from functools import wraps #编写装饰器保留原函数信息
 from flask import Flask, request, jsonify, session
 from flask_session import Session #保存用户的会话信息
 import bleach #过滤HTML标签
 from werkzeug.security import generate_password_hash, check_password_hash #密码加密
 from cryptography.fernet import Fernet #加密工具
-from datetime import timedelta #时间间隔
+
 #Flask初始化并配置
 app = Flask(__name__)
 
@@ -19,7 +19,7 @@ app.config["SESSION_PERMANENT"] = True #持久存储?
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30) #会话过期时间30分钟
 app.config["SESSION_FILE_DIR"] = "./sessions" #会话文件存储目录
 
-Session(app) #应用配置/恢复默认
+Session(app) #应用配置
 
 #加密工具的密钥
 secret_key = b"GtxU3MYb1gV-_MwZyBUYSl3HZDnCw84gQxOCetCA7Uc="
@@ -56,8 +56,8 @@ error_log = logging.getLogger("user_error")
 error_log.setLevel(logging.ERROR)
 
 error_handler = logging.FileHandler(os.path.join(BASE_DIR, "logs", "error.log"),encoding="utf-8")
-error_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname) - %(message)s\n (pathname)s:%(lineno)d"))      
-error_log.addHandler(error_handler)                                                      # ↑路径         ↑行号                               
+error_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s - %(filename)s:%(lineno)d"))      
+error_log.addHandler(error_handler)                                                                                 
 # 记录审计日志
 def write_audit_log(event, detail=""):
     ip = get_client_ip()
@@ -76,15 +76,17 @@ def get_client_ip():
 #拦截Python异常 try-except
 @app.errorhandler(Exception)
 def catch_all_error(e):                    #是否记录详细堆栈信息
-    error_log.error(f"未捕获异常：{str(e)}", exc_info=True)
+    error_log.error(f"未捕获异常：{str(e)}")
     return jsonify({"text":"服务器出错 稍后再试", "code":500}), 500 #内部500：告诉前端出错 外部500：告诉浏览器出错
 
 @app.errorhandler(404)
 def page_not_exist(e):
+    error_log.error(f"404 访问不存在的接口：{request.path}")
     return jsonify({"text":"接口不存在", "code":404}), 404
 
 @app.errorhandler(403)
 def have_no_right(e):
+    error_log.error(f"403 无权访问接口：{request.path}, 用户：{session.get('username', '未登录')}")
     return jsonify({"text":"无权访问", "code":403}), 403
 
 '''
@@ -104,7 +106,7 @@ def encrypt_text(text):
         return ""                               
     try:                                  #加密          #转字节
         encrypted_bytes = user_fernet_tool.encrypt(text.encode())
-        encrypted_text = encrypted_bytes.decode()
+        encrypted_text = encrypted_bytes.decode() #转回字符串类型 “加密后内容”
         return encrypted_text
     except Exception as e:
         print(f"加密文本失败：{str(e)}")
@@ -206,18 +208,19 @@ def init_accounts():# 添加内置账号
     load_data()         
     init_accounts()
     save_data()
-
+    #加载对应函数内容
 '''
 装饰器：
 查看面板时候条件要求
 '''
 def need_login(func):
-    @wraps(func)   #复制所在def函数的元数据 or  
+    @wraps(func)   #复制所在def函数的元数据
     def check(*args, **kwargs):# *：可以传任意数量的参数 **：可以传任意带变量名参数
                               #check(1,2,3) == args=(1,2,3);check(a=1,b=2) == kwargs={'a':1,'b':2}
-        if "user_id" not in session: 
+        if "user_id" not in session:
+            error_log.error(f"401 未登录访问接口：{request.path}")
             return jsonify({"text":"先登录", "code":401}), 401
-        return func(*args, **kwargs)   # 调用原始函数并返回结果
+        return func(*args, **kwargs)   # 调用原来函数并返回结果
     return check
 
 def need_admin(func):
@@ -233,6 +236,7 @@ def need_admin(func):
                 break
         # 在循环外检查权限
         if not now_user or now_user["role"] != "SYSTEM":
+            error_log.error(f"403 无权访问接口：{request.path}, 用户：{session.get('username', '未知')}")
             return jsonify({"text":"没有权限或用户不存在", "code":403}), 403
         return func(*args, **kwargs)
     return check
@@ -249,7 +253,7 @@ def login():
     user = user_data.get(username)
     if not user or not check_password_hash(user["password"], password):
         # 记录登录操作↓
-        write_audit_log("LOGIN_FAILED", f"用户名：{username}")
+        write_audit_log("用户登录失败", f"用户名：{username}")
         return jsonify({"text":"用户名或密码错误", "code":400}), 400
     
     # 登录成功，创建会话
@@ -286,14 +290,14 @@ def register():
     }
     uid_count += 1
     save_data()
-    write_audit_log("REGISTER_SUCCESS", f"用户名：{username}")
+    write_audit_log("用户注册成功", f"用户名：{username}")
     return jsonify({"text":"注册成功", "code":200})
 
 @app.route("/logout")
 @need_login 
 def logout():
     username = session.get("username", "未知用户")
-    write_audit_log("LOGOUT_SUCCESS", f"用户名：{username}")
+    write_audit_log("用户退出登录", f"用户名：{username}")
     session.clear()
     return jsonify({"text":"退出成功", "code":200})
 
@@ -331,7 +335,7 @@ def add_task():
     task_list.append(new_task)
     tid_count += 1
     save_data()
-    write_audit_log("TASK_CREATE", f"任务ID用户：{new_task['id']}_{session.get('username')}")
+    write_audit_log("用户添加任务", f"任务ID用户：{new_task['id']}_{session.get('username')}")
     return jsonify({"text":"ok", "code":200, "data":{"tast_id":new_task["id"]}})
 
 @app.route("/task/delete/<int:task_id>")
@@ -351,7 +355,7 @@ def delete_task(task_id):
 
     task_list.remove(target)  
     save_data()
-    write_audit_log("TASK_DELETE", "任务ID: " + str(task_id) + ", 用户: " + session.get("username"))
+    write_audit_log("用户删除任务", "任务ID: " + str(task_id) + ", 用户: " + session.get("username"))
     
     return jsonify({"text":"ok", "code":200})
 
@@ -370,23 +374,24 @@ def admin_user_list():
             "create_time": str(u["create_time"])  # 
         })
 
-    write_audit_log("ADMIN_VIEW_USERS", "管理员: " + session.get("username")) 
+    write_audit_log("管理员查看用户", "管理员: " + session.get("username")) 
     return jsonify({"text": "ok", "code": 200, "data": res})  
 
-@app.route("/admin/delete_user/<username>")  # 
+@app.route("/admin/delete_user/<username>")
 @need_admin
-def admin_delete_user(username):  
-    username = clean_input(username)  
+def admin_delete_user(username):
+    
+    username = clean_input(username)
 
-    if username not in user_data:  
-        return jsonify({"text": "用户不存在", "code": 404}), 404  
-    if user_data[username]["role"] == "SYSTEM":  
-        return jsonify({"text": "不能删除管理员账号", "code": 403}), 403  
+    if username not in user_data:
+        return jsonify({"text": "用户不存在", "code": 404}), 404
+    if user_data[username]["role"] == "SYSTEM":
+        return jsonify({"text": "不能删除管理员账号", "code": 403}), 403
 
     # 删除用户
     del user_data[username]
     save_data()
-    write_audit_log("ADMIN_DELETE_USER", "删除用户: " + username + ", 操作者: " + session.get("username")) 
+    write_audit_log("管理员删除用户", "删除用户: " + username + ", 操作者: " + session.get("username"))
 
     return jsonify({"text": "删除成功", "code": 200})
 
@@ -411,7 +416,7 @@ def admin_all_tasks():
             "create_time": str(t["create_time"])  
         })
 
-    write_audit_log("ADMIN_VIEW_TASKS", "管理员: " + session.get("username"))  
+    write_audit_log("管理员查看任务", "管理员: " + session.get("username"))  
 
     return jsonify({"text": "ok", "code": 200, "data": res})
 @app.route("/test.html")
@@ -431,4 +436,4 @@ if __name__ == "__main__":
     load_data()
     init_accounts()
     save_data()
-    app.run( host= "0.0.0.0",port=6961,debug=True)
+    app.run(host="0.0.0.0", port=6961, debug=False)

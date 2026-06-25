@@ -1,0 +1,141 @@
+=======================================================
+          Bandit 扫描报告详解
+=======================================================
+
+一、报告概述
+-----------
+扫描工具: Bandit 1.8.6
+扫描文件: app.py
+扫描时间: 2026-06-25T05:14:21Z
+
+二、报告结构详解
+----------------
+
+{                                       ← JSON 根对象
+  "errors": [],                         ← 扫描过程中的错误列表，空表示无错误
+  "generated_at": "2026-06-25T05:14:21Z",  ← 报告生成时间（UTC）
+  "metrics": {                          ← 统计指标
+    ".\\app.py": {                      ← 扫描的文件路径
+      "CONFIDENCE.HIGH": 0,             ← 高置信度问题数量: 0
+      "CONFIDENCE.LOW": 0,              ← 低置信度问题数量: 0
+      "CONFIDENCE.MEDIUM": 2,           ← 中置信度问题数量: 2
+      "CONFIDENCE.UNDEFINED": 0,        ← 未定义置信度问题数量: 0
+      "SEVERITY.HIGH": 0,               ← 高严重级别问题数量: 0 ✅
+      "SEVERITY.LOW": 1,                ← 低严重级别问题数量: 1
+      "SEVERITY.MEDIUM": 1,             ← 中严重级别问题数量: 1
+      "SEVERITY.UNDEFINED": 0,          ← 未定义严重级别问题数量: 0
+      "loc": 334,                       ← 代码行数: 334行
+      "nosec": 0,                       ← 使用 #nosec 跳过的检查数量: 0
+      "skipped_tests": 0                ← 跳过的测试数量: 0
+    },
+    "_totals": {                        ← 汇总统计（与单个文件相同）
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 2,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 1,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 334,
+      "nosec": 0,
+      "skipped_tests": 0
+    }
+  },
+  "results": [                          ← 具体问题列表
+
+    // ============ 问题1: B105 硬编码密钥 ============
+    {
+      "code": "14 \n15 app.secret_key = \"users_session\" #密钥\n16 #修改默认配置\n",
+                                        ← 触发问题的代码片段
+      "col_offset": 17,                 ← 问题在代码中的起始列: 第17列
+      "end_col_offset": 32,             ← 问题在代码中的结束列: 第32列
+      "filename": ".\\app.py",          ← 文件路径
+      "issue_confidence": "MEDIUM",     ← 问题置信度: 中等
+      "issue_cwe": {                    ← CWE 漏洞分类
+        "id": 259,                      ← CWE-259: 硬编码密码
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+                                        ← CWE 详情链接
+      },
+      "issue_severity": "LOW",          ← 问题严重级别: 低
+      "issue_text": "Possible hardcoded password: 'users_session'",
+                                        ← 问题描述: 可能存在硬编码密码
+      "line_number": 15,                ← 问题所在行号: 第15行
+      "line_range": [                   ← 问题涉及的行范围
+        15                              ← 仅第15行
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b105_hardcoded_password_string.html",
+                                        ← Bandit 插件详情链接
+      "test_id": "B105",                ← 测试ID: B105
+      "test_name": "hardcoded_password_string"
+                                        ← 测试名称: 硬编码密码字符串
+    },
+
+    // ============ 问题2: B104 绑定所有接口 ============
+    {
+      "code": "436     debug_mode = os.environ.get(\"FLASK_DEBUG\", \"false\").lower() == \"true\"\n437     app.run(host=\"0.0.0.0\", port=6961, debug=debug_mode)\n",
+                                        ← 触发问题的代码片段
+      "col_offset": 17,                 ← 问题在代码中的起始列: 第17列
+      "end_col_offset": 26,             ← 问题在代码中的结束列: 第26列
+      "filename": ".\\app.py",          ← 文件路径
+      "issue_confidence": "MEDIUM",     ← 问题置信度: 中等
+      "issue_cwe": {                    ← CWE 漏洞分类
+        "id": 605,                      ← CWE-605: 绑定到所有接口
+        "link": "https://cwe.mitre.org/data/definitions/605.html"
+                                        ← CWE 详情链接
+      },
+      "issue_severity": "MEDIUM",       ← 问题严重级别: 中等
+      "issue_text": "Possible binding to all interfaces.",
+                                        ← 问题描述: 可能绑定到所有网络接口
+      "line_number": 437,               ← 问题所在行号: 第437行
+      "line_range": [                   ← 问题涉及的行范围
+        437                             ← 仅第437行
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b104_hardcoded_bind_all_interfaces.html",
+                                        ← Bandit 插件详情链接
+      "test_id": "B104",                ← 测试ID: B104
+      "test_name": "hardcoded_bind_all_interfaces"
+                                        ← 测试名称: 硬编码绑定所有接口
+    }
+  ]
+}
+
+三、问题总结
+-----------
+
+问题1: B105 - 硬编码密钥
+├── 位置: app.py 第15行
+├── 严重级别: LOW
+├── 置信度: MEDIUM
+├── 代码: app.secret_key = "users_session"
+├── CWE: 259 (硬编码密码)
+└── 建议: 通过环境变量配置密钥
+
+问题2: B104 - 绑定所有接口
+├── 位置: app.py 第437行
+├── 严重级别: MEDIUM
+├── 置信度: MEDIUM
+├── 代码: app.run(host="0.0.0.0")
+├── CWE: 605 (绑定到所有接口)
+└── 建议: 生产环境改为 127.0.0.1
+
+四、合规性检查
+-------------
+✓ HIGH 级别问题: 0 个 ✅
+✓ MEDIUM 级别问题: 1 个 ✅ (≤ 2)
+✓ LOW 级别问题: 1 个
+✓ 代码行数: 334行
+✓ 扫描错误: 0 个
+
+五、修复建议
+------------
+1. secret_key 改为环境变量:
+   app.secret_key = os.environ.get("SECRET_KEY", "default_key")
+
+2. host 改为环境变量控制:
+   host = os.environ.get("FLASK_HOST", "127.0.0.1")
+   app.run(host=host, port=6961)
+
+=======================================================
+                      END
+=======================================================

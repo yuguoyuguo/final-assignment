@@ -1,8 +1,8 @@
 须知： 
     带#的那一行是上面一行的解释
-    test.html 是测试网页，但不能直接打开
-    文件都放同一个目录下
-
+    代码质量测试：bandit -r app.py -f json -o bandit_report.json  
+    #-o：输出的文件名 -f 输出的文件类型 -r 读取app.py
+    
 运行app.py
 测试访问网站http://127.0.0.1:6961/test.html
 
